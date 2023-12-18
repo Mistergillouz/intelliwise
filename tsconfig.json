@@ -1,13 +1,12 @@
 {
 	"compilerOptions": {
-		"module": "Node16",
-		"target": "ES2022",
+		"module": "commonjs",
+		"target": "es2020",
+		"lib": ["es2020"],
 		"outDir": "out",
-		"lib": [
-			"ES2022"
-		],
 		"sourceMap": true,
 		"rootDir": "src",
+		"esModuleInterop": true,
 		"strictNullChecks" : false,
 		"strict": true   /* enable all strict type-checking options */
 		/* Additional Checks */

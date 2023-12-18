@@ -1,8 +1,5 @@
 import * as vscode from 'vscode';
 import WiseHelper from './WiseHelper';
-import ASTHelper from './ASTHelper';
-import fs from 'node:fs';
-import path from 'node:path';
 
 export function activate(context: vscode.ExtensionContext) {
 
