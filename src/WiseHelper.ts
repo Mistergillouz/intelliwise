@@ -89,10 +89,10 @@ class WiseHelper {
   }
 
   getImportSourceFunctions(sourcePath: string) {
-      //TODO: remap to wise environment folder structure
-      const index = sourcePath.lastIndexOf('/');
-      const filePath = path.join(__dirname, '../wise', `${sourcePath.substring(index)}.js`);
-      return this.getExternalSourceFunctions(filePath);
+    //TODO: remap to wise environment folder structure
+    const index = sourcePath.lastIndexOf('/');
+    const filePath = path.join(__dirname, '../wise', `${sourcePath.substring(index)}.js`);
+    return this.getExternalSourceFunctions(filePath);
   }
 
   getExternalSourceFunctions(filePath: string) {
@@ -106,19 +106,27 @@ class WiseHelper {
     }
   }
 
-  buildCompletionItems(functions: FunctionDescriptor[]) {
-    return functions.map((funct) => {
-      const item = new vscode.CompletionItem(funct.name, vscode.CompletionItemKind.Function);
-      const snipperString = this.getSnipperString(funct.name, funct.params);
-      const snippet = new vscode.SnippetString(snipperString);
-      item.insertText = snippet;
+  buildCompletionItems(inputFunctions: FunctionDescriptor[]) {
+    const functions = inputFunctions.sort((s0, s1) => s0.name.localeCompare(s1.name));
+    return functions
+      .map((funct, index, self) => {
+        const item = new vscode.CompletionItem(`★ ${funct.name}`, vscode.CompletionItemKind.Method);
+        item.detail = 'Prototype';
+        item.sortText = '01';
 
-      return item;
-    });
+        const paramString = funct.params.join('_, _');
+        const markup = new vscode.MarkdownString(`**${funct.name}** (_${paramString}_)`);
+        item.documentation = markup;
+
+        const snippetString = this.getSnippetString(funct.name, funct.params);
+        item.insertText = new vscode.SnippetString(snippetString);
+
+        return item;
+      });
   }
 
 
-  getSnipperString(functionName: string, params: string[]) {
+  getSnippetString(functionName: string, params: string[]) {
     const parameters = params
       .map((parameterName, index: number) => `\${${index + 1}:${parameterName}}`)
       .join(', ');
@@ -152,27 +160,27 @@ class WiseHelper {
 
   getInfoUnderCursor(document: vscode.TextDocument, cursorPosition: vscode.Position) {
     let currentWord = this.getWord(document, cursorPosition);
-
-    let currentLine = cursorPosition.line;
-    let column = cursorPosition.character;
     let previousWord = null;
+
+    let line = cursorPosition.line;
+    let column = cursorPosition.character;
 
     while (true) {
       column -= 1;
 
       if (column < 0) {
-        currentLine -= 1;
-        if (currentLine < 0 || cursorPosition.line - currentLine > 1) {
+        line -= 1;
+        if (line < 0 || cursorPosition.line - line > 1) {
           break;
         }
-        const line = document.lineAt(currentLine);
-        column = line.text.length - 1;
+        const prevLine = document.lineAt(line);
+        column = prevLine.text.length - 1;
         if (column < 0) {
           break;
         }
       }
 
-      const position = new Position(currentLine, column);
+      const position = new Position(line, column);
       const word = this.getWord(document, position);
       if (word && word !== currentWord) {
         previousWord = word;
