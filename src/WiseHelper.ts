@@ -110,9 +110,8 @@ class WiseHelper {
     const functions = inputFunctions.sort((s0, s1) => s0.name.localeCompare(s1.name));
     return functions
       .map((funct, index, self) => {
-        const item = new vscode.CompletionItem(`★ ${funct.name}`, vscode.CompletionItemKind.Method);
-        item.detail = 'Prototype';
-        item.sortText = '01';
+        const item = new vscode.CompletionItem(`★ ${funct.name}`, vscode.CompletionItemKind.Snippet);
+        item.detail = '(Wise) Prototype';
 
         const paramString = funct.params.join('_, _');
         const markup = new vscode.MarkdownString(`**${funct.name}** (_${paramString}_)`);
