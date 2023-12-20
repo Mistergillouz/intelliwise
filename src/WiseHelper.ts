@@ -39,7 +39,6 @@ class WiseHelper {
   getCompletionItems(document: TextDocument, position: Position): vscode.CompletionItem[] {
     let items = undefined;
 
-    debugger;
     const source = document.getText();
     const helper = new ASTHelper(source);
 
@@ -110,7 +109,7 @@ class WiseHelper {
 
     if (WiseHelper.USE_DEBUG_ENV) {
       const index = sourcePath.lastIndexOf('/');
-      const filePath = path.join(__dirname, '../wise', `${sourcePath.substring(index)}.js`);
+      const filePath = path.join(vscode.workspace.rootPath, 'wise', `${sourcePath.substring(index)}.js`);
       return this.getExternalSourceFunctions(filePath);
     }
 
@@ -122,7 +121,7 @@ class WiseHelper {
       if (outputFolder) {
         const outputParts = outputFolder.split('/');
         outputParts.push(fileName);
-        const filePath = path.join(__dirname, ...outputParts);
+        const filePath = path.join(vscode.workspace.rootPath, ...outputParts);
         return this.getExternalSourceFunctions(filePath);
       } else {
         parts.pop();
