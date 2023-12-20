@@ -20,6 +20,13 @@ const WordTypes: { [key: string]: WordType } = {
   }
 };
 
+
+type WordInfo = {
+  word: string;
+  wordType: string;
+};
+
+
 class WiseHelper {
 
   helpers: string[];
@@ -32,23 +39,21 @@ class WiseHelper {
   getCompletionItems(document: TextDocument, position: Position): vscode.CompletionItem[] {
     let items = undefined;
 
+    debugger;
     const source = document.getText();
     const helper = new ASTHelper(source);
 
-    const infos = this.getInfoUnderCursor(document, position);
-    const previousWord = infos.previous.word;
-    if (previousWord === 'this') {
+    const { word, wordType } = this.getPreviousWord(document, position);
+    if (word === 'this') {
       const functions = helper.getFunctions();
       items = this.buildCompletionItems(functions);
     } else {
       const defineSection = helper.getDefineSection();
-      const index = defineSection.variables.findIndex((variable) => variable === previousWord);
+      const index = defineSection.variables.findIndex((variable) => variable === word);
       if (index > -1) {
         items = this.getImportSourceFunctions(defineSection.paths[index]);
-      }
-
-      if (infos.previous.type === WordTypes.HELPER.id) {
-        items = this.getHelperSourceFunctions(previousWord);
+      } else if (wordType === WordTypes.HELPER.id) {
+        items = this.getHelperSourceFunctions(word);
       }
     }
 
@@ -88,11 +93,43 @@ class WiseHelper {
     return path;
   }
 
-  getImportSourceFunctions(sourcePath: string) {
+  static resourceRoot: { [key: string]: string } = {
+    'sap/bi/webi/core/flux': './wise-core-flux/src/sap/bi/webi/core/flux',
+    'sap/bi/webi/core/utils': './wise-core-utils/src/sap/bi/webi/core/utils',
+    'sap/bi/dev-platform': './wise-dev-platform/src',
+    'sap/bi/webi/jsapi/flux': './wise-jsapi-flux/src/sap/bi/webi/jsapi/flux',
+    'sap/bi/webi/caf': './wise-container/src',
+    'sap/bi/webi': './wise-wing/src',
+    'sap/bi/wrc': './wise-wrc/src'
+  };
+
+  static USE_DEBUG_ENV = false;
+
+  getImportSourceFunctions(sourcePath: string): vscode.CompletionItem[] {
     //TODO: remap to wise environment folder structure
-    const index = sourcePath.lastIndexOf('/');
-    const filePath = path.join(__dirname, '../wise', `${sourcePath.substring(index)}.js`);
-    return this.getExternalSourceFunctions(filePath);
+
+    if (WiseHelper.USE_DEBUG_ENV) {
+      const index = sourcePath.lastIndexOf('/');
+      const filePath = path.join(__dirname, '../wise', `${sourcePath.substring(index)}.js`);
+      return this.getExternalSourceFunctions(filePath);
+    }
+
+    const parts = sourcePath.split('/');
+    const fileName = `${parts.pop()}.js`;
+    while (parts.length > 0) {
+      const sapPath = parts.join('/');
+      const outputFolder = WiseHelper.resourceRoot[sapPath];
+      if (outputFolder) {
+        const outputParts = outputFolder.split('/');
+        outputParts.push(fileName);
+        const filePath = path.join(__dirname, ...outputParts);
+        return this.getExternalSourceFunctions(filePath);
+      } else {
+        parts.pop();
+      }
+    }
+
+    return undefined;
   }
 
   getExternalSourceFunctions(filePath: string) {
@@ -157,7 +194,7 @@ class WiseHelper {
     return word;
   }
 
-  getInfoUnderCursor(document: vscode.TextDocument, cursorPosition: vscode.Position) {
+  getPreviousWord(document: vscode.TextDocument, cursorPosition: vscode.Position): WordInfo {
     let currentWord = this.getWord(document, cursorPosition);
     let previousWord = null;
 
@@ -188,14 +225,8 @@ class WiseHelper {
     }
 
     return {
-      current: {
-        word: currentWord,
-        type: this.getWordType(currentWord)
-      },
-      previous: {
-        word: previousWord,
-        type: this.getWordType(previousWord)
-      }
+      word: previousWord,
+      wordType: this.getWordType(previousWord)
     };
   }
 

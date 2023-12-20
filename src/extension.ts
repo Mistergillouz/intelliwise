@@ -23,6 +23,8 @@ export function activate(context: vscode.ExtensionContext) {
 	configuration.update(propertName, 'top', vscode.ConfigurationTarget.Global);
 
 	context.subscriptions.push(wiseIntellisense);
+
+	vscode.window.showInformationMessage('IntelliWise initialized')
 }
 
 // This method is called when your extension is deactivated

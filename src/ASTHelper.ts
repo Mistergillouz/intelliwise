@@ -28,21 +28,6 @@ export default class ASTHelper {
     this._flatten();
   }
 
-  // try {
-	// 	const sourcePath = path.join(__dirname, '../sample_code.js');
-	// 	const source = fs.readFileSync(sourcePath, 'utf8');
-	// 	const helper = new ASTHelper(source);
-	// 	const defineSection = helper.getDefineSection();
-	// 	const functions = helper.getFunctions();
-
-	// 	console.log(defineSection);
-	// 	console.log('-----------------');
-	// 	console.log(functions);
-	// } catch (oError) {
-	// 	console.log("Current directory:", __dirname);
-	// 	console.log(oError);
-	// }
-
   getFunctions(): FunctionDescriptor[] {
     const functions = this.nodes
       .filter((node) => node.type === 'ExpressionStatement' &&
