@@ -232,7 +232,7 @@ class WiseHelper {
   }
 
   async fetchHelpers() {
-    const glob = `**/*/*helper.js`;
+    const glob = `**/*/*[hH]elper.js`;
     const files = await vscode.workspace.findFiles(glob, '**/node_modules/**', 1000);
 
     this.helpers = files.map((file) => {
