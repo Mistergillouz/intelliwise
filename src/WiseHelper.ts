@@ -113,13 +113,15 @@ class WiseHelper {
       return this.getExternalSourceFunctions(filePath);
     }
 
-    const parts = sourcePath.split('/');
-    const fileName = `${parts.pop()}.js`;
+    const sourceParts = sourcePath.split('/');
+    const fileName = `${sourceParts.pop()}.js`;
+
+    const parts = sourceParts.slice()
     while (parts.length > 0) {
       const sapPath = parts.join('/');
       const outputFolder = WiseHelper.resourceRoot[sapPath];
       if (outputFolder) {
-        const outputParts = outputFolder.split('/');
+        const outputParts = outputFolder.split('/').concat(sourceParts.slice(parts.length));
         outputParts.push(fileName);
         const filePath = path.join(vscode.workspace.rootPath, ...outputParts);
         return this.getExternalSourceFunctions(filePath);
@@ -231,13 +233,12 @@ class WiseHelper {
 
   async fetchHelpers() {
     const glob = `**/*/*helper.js`;
-    const files = await vscode.workspace.findFiles(glob, '**/node_modules/**', 100);
+    const files = await vscode.workspace.findFiles(glob, '**/node_modules/**', 1000);
 
     this.helpers = files.map((file) => {
       return file.path.startsWith('/') ? file.path.substring(1) : file.path;
     });
   }
 }
-
 
 export default new WiseHelper();
