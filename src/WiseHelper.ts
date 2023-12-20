@@ -116,7 +116,7 @@ class WiseHelper {
     const sourceParts = sourcePath.split('/');
     const fileName = `${sourceParts.pop()}.js`;
 
-    const parts = sourceParts.slice()
+    const parts = sourceParts.slice();
     while (parts.length > 0) {
       const sapPath = parts.join('/');
       const outputFolder = WiseHelper.resourceRoot[sapPath];
@@ -238,6 +238,8 @@ class WiseHelper {
     this.helpers = files.map((file) => {
       return file.path.startsWith('/') ? file.path.substring(1) : file.path;
     });
+
+    vscode.window.showInformationMessage('Wise Intellisense loaded.');
   }
 }
 

@@ -3,7 +3,8 @@
   "displayName": "Wise Intellisense",
   "description": "Intellisense for SAP Wise",
   "version": "0.0.1",
-  "author": "mistergillouz",
+  "icon": "images/logo.png",
+  "publisher": "mistergillouz",
   "repository": {
     "type": "git",
     "url": "https://github.com/Mistergillouz/intelliwise.git"
