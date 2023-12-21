@@ -44,7 +44,7 @@ class WiseHelper {
 
     const { word, wordType } = this.getPreviousWord(document, position);
     if (word === 'this') {
-      const functions = helper.getFunctions();
+      const functions = helper.getFunctions(true);
       items = this.buildCompletionItems(functions);
     } else {
       const defineSection = helper.getDefineSection();

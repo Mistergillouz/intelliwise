@@ -28,7 +28,7 @@ export default class ASTHelper {
     this._flatten();
   }
 
-  getFunctions(): FunctionDescriptor[] {
+  getFunctions(includeProtected: boolean = false): FunctionDescriptor[] {
     const functions = this.nodes
       .filter((node) => node.type === 'ExpressionStatement' &&
         node.expression.type === 'AssignmentExpression' &&
@@ -36,7 +36,7 @@ export default class ASTHelper {
       .map((node) => {
         // exclude private
         const name = node.expression.left.property.name;
-        if (!this.isValidFunctionName(name)) {
+        if (!this.isValidFunctionName(name, includeProtected)) {
           return null;
         }
 
@@ -115,14 +115,11 @@ export default class ASTHelper {
 
   static ignoredFunctionNames = ['init', 'exit', 'onInit', 'onExit'];
 
-  isValidFunctionName(name: string) {
-    if (name.startsWith('_')) {
+  isValidFunctionName(name: string, includeProtected: boolean) {
+    if (!includeProtected && name.startsWith('_')) {
       return false;
     }
 
     return !ASTHelper.ignoredFunctionNames.includes(name);
-
   }
 }
-
-
