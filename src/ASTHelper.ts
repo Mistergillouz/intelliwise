@@ -3,6 +3,7 @@ const acornLoose = require("acorn-loose");
 type AST = object;
 
 type Node = {
+  parent: any;
   type: string,
   name: string,
   expression: any,
@@ -25,7 +26,7 @@ export default class ASTHelper {
 
   constructor(source: string) {
     this.ast = acornLoose.parse(source, { ecmaVersion: 2020 });
-    this._flatten();
+    this.flattenModel();
   }
 
   getFunctions(includeProtected: boolean = false): FunctionDescriptor[] {
@@ -93,24 +94,31 @@ export default class ASTHelper {
     return defines;
   }
 
-  _flatten(): void {
+  flattenModel(): void {
     this.nodes = [];
     this._visit(this.ast, (node: Node) => this.nodes.push(node));
   }
 
-  _visit(ast: any, callback: any) {
-    callback(ast);
+  _visit(parentNode: any, callback: any) {
+    callback(parentNode);
 
     const isNode = (node: Node) => node && typeof node === 'object';
 
-    const values: Node[] = Object.values(ast);
-    values.forEach((child) => {
-      if (Array.isArray(child)) {
-        child.forEach((childItem) => this._visit(childItem, callback));
-      } else if (isNode(child)) {
-        this._visit(child, callback);
-      }
-    });
+    Object
+      .keys(parentNode)
+      .filter((key) => key !== 'parent')
+      .forEach((key) => {
+        const child = parentNode[key];
+        if (Array.isArray(child)) {
+          child.forEach((childItem) => {
+            this._visit(childItem, callback);
+            childItem.parent = parentNode;
+          });
+        } else if (isNode(child)) {
+          this._visit(child, callback);
+          child.parent = parentNode;
+        }
+      });
   }
 
   static ignoredFunctionNames = ['init', 'exit', 'onInit', 'onExit'];
