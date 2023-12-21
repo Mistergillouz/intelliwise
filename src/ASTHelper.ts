@@ -3,6 +3,9 @@ const acornLoose = require("acorn-loose");
 type AST = object;
 
 type Node = {
+  value: any;
+  key: any;
+  kind: string;
   parent: any;
   type: string,
   name: string,
@@ -16,8 +19,7 @@ type Node = {
   property: Node,
   element: Node,
   elements: Node[],
-  nodes: Node[],
-  value: string
+  nodes: Node[]
 };
 
 export default class ASTHelper {
@@ -49,7 +51,20 @@ export default class ASTHelper {
       })
       .filter(Boolean);
 
-    return functions;
+    const classMethods = this.nodes
+      .filter((node) => node.type === 'MethodDefinition' && node.kind === 'method')
+      .map((node) => {
+        const name = node.key.name;
+        if (!this.isValidFunctionName(name, includeProtected)) {
+          return null;
+        }
+
+        const params = node.value.params.map((param: Node) => param.name);
+        return { name, params };
+      })
+      .filter(Boolean);
+
+    return functions.concat(classMethods);
   }
 
   getDefineSection(): DefineDescriptor {
@@ -121,7 +136,7 @@ export default class ASTHelper {
       });
   }
 
-  static ignoredFunctionNames = ['init', 'exit', 'onInit', 'onExit'];
+  static ignoredFunctionNames = ['init', 'exit', 'destroy', 'onInit', 'onExit'];
 
   isValidFunctionName(name: string, includeProtected: boolean) {
     if (!includeProtected && name.startsWith('_')) {
