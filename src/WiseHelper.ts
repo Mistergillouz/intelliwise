@@ -147,12 +147,16 @@ class WiseHelper {
   buildCompletionItems(inputFunctions: FunctionDescriptor[]) {
     const functions = inputFunctions.sort((s0, s1) => s0.name.localeCompare(s1.name));
     return functions
-      .map((funct, index, self) => {
+      .map((funct) => {
         const item = new vscode.CompletionItem(`★ ${funct.name}`, vscode.CompletionItemKind.Snippet);
         item.detail = '(Wise) Prototype';
 
-        const paramString = funct.params.join('_, _');
-        const markup = new vscode.MarkdownString(`**${funct.name}** (_${paramString}_)`);
+        let paramString = '';
+        if (funct.params.length > 0) {
+          paramString = `_${funct.params.join('_, _')}_`;
+        }
+
+        const markup = new vscode.MarkdownString(`**${funct.name}** (${paramString})`);
         item.documentation = markup;
 
         const snippetString = this.getSnippetString(funct.name, funct.params);
