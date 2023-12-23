@@ -1,6 +1,8 @@
 const acornLoose = require("acorn-loose");
 
-type AST = object;
+type AST = {
+  body: Node[]
+} & object;
 
 type Node = {
   value: any;
@@ -68,45 +70,92 @@ export default class ASTHelper {
   }
 
   getDefineSection(): DefineDescriptor {
-    const defines = this.nodes
-      .filter((node) => node.type === 'CallExpression')
-      .filter((node) => {
-        const callee = node.callee;
-        if (callee?.type !== 'MemberExpression') {
-          return false;
+    if (!Array.isArray(this.ast.body)) {
+      return null;
+    }
+
+    let paths = null;
+    let variables = null;
+
+    const bodyIndex = this.ast.body.findIndex((bodyNode) => {
+      const isCallee = bodyNode.type === 'ExpressionStatement' && bodyNode.expression.type === 'CallExpression' && bodyNode.expression.callee.type === 'MemberExpression';
+      if (!isCallee) {
+        return false;
+      }
+
+      const { expression } = bodyNode;
+      const { callee } = expression;
+      const functionName = callee.property?.name;
+      const memberExpression = callee.object;
+      const objectName = memberExpression.object?.name;
+      const propertyName = memberExpression.property?.name;
+      if (objectName !== 'sap' || propertyName !== 'ui' || functionName !== 'define') {
+        return false;
+      }
+
+      expression.arguments.forEach((argument: Node) => {
+        if (argument.type === 'FunctionExpression' && Array.isArray(argument.params)) {
+          variables = argument.params.map((param) => param.name);
         }
-
-        const functionName = callee.property?.name;
-
-        const memberExpression = callee.object;
-        const objectName = memberExpression.object?.name;
-        const propertyName = memberExpression.property?.name;
-
-        return objectName === 'sap' && propertyName === 'ui' && functionName === 'define';
-      })
-      .map((node) => {
-        const paths: string[] = [];
-        const variables: string[] = [];
-        if (Array.isArray(node.arguments)) {
-          node.arguments.forEach((argument) => {
-            if (argument.type === 'FunctionExpression' && Array.isArray(argument.params)) {
-              argument.params.forEach((param) => variables.push(param.name));
-            }
-            if (argument.type === 'ArrayExpression') {
-              argument.elements.forEach((element) => paths.push(element.value));
-            }
-          });
-
-          return { paths, variables };
+        if (argument.type === 'ArrayExpression') {
+          paths = argument.elements.map((element) => element.value);
         }
+      });
 
-        return null;
-      })
-      .filter((x) => x)
-      .shift();
+      return true;
+    });
+
+    if (!variables && bodyIndex > -1) {
+      const node = this.ast.body[bodyIndex + 1];
+      if (node?.type === 'FunctionDeclaration') {
+        variables = node.params.map((param) => param.name);
+      }
+
+      return {
+        paths: paths || [],
+        variables: variables || []
+      };
+    }
+
+    // const defines = this.ast?.b
+    //   .filter((node) => node.type === 'CallExpression')
+    //   .filter((node) => {
+    //     const callee = node.callee;
+    //     if (callee?.type !== 'MemberExpression') {
+    //       return false;
+    //     }
+
+    //     const functionName = callee.property?.name;
+
+    //     const memberExpression = callee.object;
+    //     const objectName = memberExpression.object?.name;
+    //     const propertyName = memberExpression.property?.name;
+
+    //     return objectName === 'sap' && propertyName === 'ui' && functionName === 'define';
+    //   })
+    //   .map((node) => {
+    //     const paths: string[] = [];
+    //     const variables: string[] = [];
+    //     if (Array.isArray(node.arguments)) {
+    //       node.arguments.forEach((argument) => {
+    //         if (argument.type === 'FunctionExpression' && Array.isArray(argument.params)) {
+    //           argument.params.forEach((param) => variables.push(param.name));
+    //         }
+    //         if (argument.type === 'ArrayExpression') {
+    //           argument.elements.forEach((element) => paths.push(element.value));
+    //         }
+    //       });
+
+    //       return { paths, variables };
+    //     }
+
+    //     return null;
+    //   })
+    //   .filter((x) => x)
+    //   .shift();
 
 
-    return defines;
+    // return defines;
   }
 
   flattenModel(): void {

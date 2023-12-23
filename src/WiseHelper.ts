@@ -48,7 +48,7 @@ class WiseHelper {
       items = this.buildCompletionItems(functions);
     } else {
       const defineSection = helper.getDefineSection();
-      const index = defineSection.variables.findIndex((variable) => variable === word);
+      const index = defineSection?.variables.findIndex((variable) => variable === word);
       if (index > -1) {
         items = this.getImportSourceFunctions(defineSection.paths[index]);
       } else if (wordType === WordTypes.HELPER.id) {
