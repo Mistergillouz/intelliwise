@@ -226,26 +226,27 @@ getDefineSection(): DefineDescriptor {
 
 flattenModel(): void {
   this.nodes = [];
-  this._visit(this.ast, (node: Node) => this.nodes.push(node));
+  this._visit(this.ast, (node: Node, parentNode: Node) => {
+    node.parent = parentNode;
+    this.nodes.push(node);
+  });
 }
 
-_visit(parentNode: any, callback: any) {
-  callback(parentNode);
+_visit(currentNode: any, callback: any, parentNode?: Node) {
+  callback(currentNode, parentNode);
 
   const isNode = (node: Node) => node && typeof node === 'object';
   Object
-    .keys(parentNode)
+    .keys(currentNode)
     .filter((key) => key !== 'parent')
     .forEach((key) => {
-      const child = parentNode[key];
+      const child = currentNode[key];
       if (Array.isArray(child)) {
-        child.forEach((childItem) => {
-          this._visit(childItem, callback);
-          childItem.parent = parentNode;
+        child.forEach((childNode) => {
+          this._visit(childNode, callback, currentNode);
         });
       } else if (isNode(child)) {
-        this._visit(child, callback);
-        child.parent = parentNode;
+        this._visit(child, callback, currentNode);
       }
     });
 }
