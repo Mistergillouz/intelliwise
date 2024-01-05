@@ -34,34 +34,26 @@ export default class ASTHelper {
     this.flattenModel();
   }
 
-  findPropertyIndex(propertyPath: string[]): number {
-    const index = propertyPath.reduce((acc, propertyName) => {
-      if (acc > -1) {
-        const foundIndex = this.nodes.slice(acc).findIndex((node) => node.type === 'Identifier' && node.name === propertyName);
-        acc = foundIndex > -1 ? acc + foundIndex : -1;
-      }
-      return acc;
-    }, 0);
+  findPropertyNode(propertyPath: string[]): any {
+    const foundNode: any = propertyPath.reduce((acc: any, propertyName) => {
+      return this.visitNodes(acc, (node: Node) => node.type === 'Property' && node.key?.name === propertyName);
+    }, this.ast);
 
-    return index;
+    return foundNode;
   }
 
   getStoreProperties(): FunctionDescriptor[] {
     const searchPath = ['metadata', 'properties', 'storeProperties', 'defaultValue'];
-    const index = this.findPropertyIndex(searchPath);
-    if (index < 0) {
-      return null;
-    }
-    const { parent } = this.nodes[index];
-    if (parent.type !== 'Property' && parent.value.type !== 'ArrayExpression') {
+    const node = this.findPropertyNode(searchPath);
+    if (!node || node.value?.type !== 'ArrayExpression') {
       return null;
     }
 
     const keyElementPath = ['metadata', 'properties', 'keyElements'];
-    const hasViewContext = this.findPropertyIndex(keyElementPath) > -1;
+    const hasViewContext = Boolean(this.findPropertyNode(keyElementPath));
     const fnUpperFirst = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
 
-    const storeDescriptors: FunctionDescriptor[] = parent.value.elements
+    const storeDescriptors: FunctionDescriptor[] = node.value.elements
       .filter((element: Node) => element.type === 'ObjectExpression')
       .filter((element: Node) => Array.isArray(element.properties))
       .map((element: Node) => {
@@ -182,73 +174,49 @@ getDefineSection(): DefineDescriptor {
       variables: variables || []
     };
   }
-
-  // const defines = this.ast?.b
-  //   .filter((node) => node.type === 'CallExpression')
-  //   .filter((node) => {
-  //     const callee = node.callee;
-  //     if (callee?.type !== 'MemberExpression') {
-  //       return false;
-  //     }
-
-  //     const functionName = callee.property?.name;
-
-  //     const memberExpression = callee.object;
-  //     const objectName = memberExpression.object?.name;
-  //     const propertyName = memberExpression.property?.name;
-
-  //     return objectName === 'sap' && propertyName === 'ui' && functionName === 'define';
-  //   })
-  //   .map((node) => {
-  //     const paths: string[] = [];
-  //     const variables: string[] = [];
-  //     if (Array.isArray(node.arguments)) {
-  //       node.arguments.forEach((argument) => {
-  //         if (argument.type === 'FunctionExpression' && Array.isArray(argument.params)) {
-  //           argument.params.forEach((param) => variables.push(param.name));
-  //         }
-  //         if (argument.type === 'ArrayExpression') {
-  //           argument.elements.forEach((element) => paths.push(element.value));
-  //         }
-  //       });
-
-  //       return { paths, variables };
-  //     }
-
-  //     return null;
-  //   })
-  //   .filter((x) => x)
-  //   .shift();
-
-
-  // return defines;
 }
 
 flattenModel(): void {
   this.nodes = [];
-  this._visit(this.ast, (node: Node, parentNode: Node) => {
+  this.visitNodes(this.ast, (node: Node, parentNode: Node) => {
     node.parent = parentNode;
     this.nodes.push(node);
+    return false;
   });
 }
 
-_visit(currentNode: any, callback: any, parentNode?: Node) {
-  callback(currentNode, parentNode);
+isNode (node: Node) {
+  return node && typeof node === 'object';
+}
 
-  const isNode = (node: Node) => node && typeof node === 'object';
-  Object
-    .keys(currentNode)
-    .filter((key) => key !== 'parent')
-    .forEach((key) => {
-      const child = currentNode[key];
-      if (Array.isArray(child)) {
-        child.forEach((childNode) => {
-          this._visit(childNode, callback, currentNode);
-        });
-      } else if (isNode(child)) {
-        this._visit(child, callback, currentNode);
+visitNodes(currentNode: any, callback: any, parentNode?: Node) {
+  if (!currentNode) {
+    return null;
+  }
+  if (callback(currentNode, parentNode)) {
+    return currentNode;
+  }
+
+  let found: Node = null;
+  const nodeKeys = Object.keys(currentNode).filter((key) => key !== 'parent');
+  for (const key of nodeKeys) {
+    const child = currentNode[key];
+    if (Array.isArray(child)) {
+      for (const childNode of child) {
+        found = this.visitNodes(childNode, callback, currentNode);
+        if (found) {
+          return found;
+        }
       }
-    });
+    } else if (this.isNode(child)) {
+      found = this.visitNodes(child, callback, currentNode);
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return found;
 }
 
   static ignoredFunctionNames = ['init', 'exit', 'destroy', 'onInit', 'onExit'];
