@@ -6,33 +6,34 @@ import path from 'node:path';
 
 type WordType = {
   id: string;
-  matches: string[];
+  match: string;
 };
 
 const WordTypes: { [key: string]: WordType } = {
   STORE: {
     id: 'store',
-    matches: ['Store', 'Store()']
+    match: 'Store'
   },
   HELPER: {
     id: 'helper',
-    matches: ['Helper()', 'Helper']
+    match: 'Helper'
   }
 };
 
 
 type WordInfo = {
   word: string;
-  wordType: string;
+  wordType: WordType;
 };
 
 
 class WiseHelper {
 
   helpers: string[];
+  stores: string[];
 
   constructor() {
-    this.fetchHelpers();
+    this.fetchFiles();
   }
 
 
@@ -51,42 +52,65 @@ class WiseHelper {
       const index = defineSection?.variables.findIndex((variable) => variable === word);
       if (index > -1) {
         items = this.getImportSourceFunctions(defineSection.paths[index]);
-      } else if (wordType === WordTypes.HELPER.id) {
+      } else if (wordType === WordTypes.HELPER) {
         items = this.getHelperSourceFunctions(word);
+      } else if (wordType === WordTypes.STORE) {
+        items = this.getStoreSourceFunctions(word);
       }
     }
 
     return items;
   }
 
-  getHelperSourceFunctions(helperName: string): vscode.CompletionItem[] {
-    const helperPath = this.getHelperFilePath(helperName);
-    if (!helperPath) {
+  getStoreSourceFunctions(storeName: string): vscode.CompletionItem[] {
+    const filePath = this.getFilePath(storeName, WordTypes.STORE);
+    if (!filePath) {
       return null;
     }
 
-    return this.getExternalSourceFunctions(helperPath);
+    const storeProperties = this.getStoreProperties(filePath);
+    return storeProperties;
   }
 
-  getHelperFilePath(helperName: string): string {
-    let fileName = helperName;
-    if (fileName.endsWith('()')) {
-      fileName = fileName.substring(0, fileName.length - 2);
+  getStoreProperties(filePath: string): vscode.CompletionItem[] {
+    try {
+      const source = fs.readFileSync(filePath, 'utf8');
+      const helper = new ASTHelper(source);
+      const propertiesDescriptors: FunctionDescriptor[] = helper.getStoreProperties();
+      if (Array.isArray(propertiesDescriptors)) {
+        return this.buildCompletionItems(propertiesDescriptors);
+      }
+
+      return null;
+    } catch (oError) {
+      return null;
+    }
+  }
+
+  getHelperSourceFunctions(helperName: string): vscode.CompletionItem[] {
+    const filePath = this.getFilePath(helperName, WordTypes.HELPER);
+    if (!filePath) {
+      return null;
     }
 
-    if (fileName.endsWith('Helper') || fileName.endsWith('helper')) {
-      fileName = fileName.substring(0, fileName.length - 6);
+    return this.getExternalSourceFunctions(filePath);
+  }
+
+  getFilePath(helperName: string, wordType: WordType): string {
+    const regex = new RegExp(this.getWordTypeRegex(wordType));
+    const match = helperName.match(regex);
+    if (!match) {
+      return null;
     }
 
-    if (fileName.startsWith('get')) {
-      fileName = fileName.substring(3);
-    }
+    const fileName = match.groups.found;
+    const files = wordType === WordTypes.HELPER ? this.helpers : this.stores;
 
-    let tryName = `${fileName}helper.js`.toLowerCase();
-    let path = this.helpers.find((helperPath) => helperPath.toLowerCase().includes(tryName));
+    let tryName = `${fileName}${wordType.match}.js`.toLowerCase();
+    let path = files.find((helperPath) => helperPath.toLowerCase().includes(tryName));
     if (!path) {
-      tryName = `${fileName}.helper.js`.toLowerCase();
-      path = this.helpers.find((helperPath) => helperPath.toLowerCase().includes(tryName));
+      tryName = `${fileName}.${wordType.match}.js`.toLowerCase();
+      path = files.find((helperPath) => helperPath.toLowerCase().includes(tryName));
     }
 
     return path;
@@ -176,17 +200,22 @@ class WiseHelper {
   }
 
 
+  getWordTypeRegex (wordType: WordType) {
+    const regex = new RegExp(`(?:get)?(?<found>[A-Z]\\w+)${wordType.match}\\b`);
+    return regex;
+  }
 
   getWordType(word: string) {
     if (!word) {
       return null;
     }
 
-    const wordType = Object.values(WordTypes).find(({ matches }) => {
-      return matches.some((match) => word.endsWith(match));
+    const wordType = Object.values(WordTypes).find((wordType) => {
+      const regex = this.getWordTypeRegex(wordType);
+      return Boolean(regex.exec(word));
     });
 
-    return wordType && wordType.id;
+    return wordType;
   }
 
   getWord(document: vscode.TextDocument, position: vscode.Position) {
@@ -235,13 +264,13 @@ class WiseHelper {
     };
   }
 
-  async fetchHelpers() {
-    const glob = `**/*/*[hH]elper.js`;
-    const files = await vscode.workspace.findFiles(glob, '**/node_modules/**', 1000);
+  async fetchFiles() {
+    const helpers = await vscode.workspace.findFiles('**/*/*[hH]elper.js', '**/node_modules/**', 1000);
+    const stores = await vscode.workspace.findFiles('**/*/*[sS]tore.js', '**/node_modules/**', 1000);
 
-    this.helpers = files.map((file) => {
-      return file.path.startsWith('/') ? file.path.substring(1) : file.path;
-    });
+    const fnFileName = (file: vscode.Uri) => file.path.startsWith('/') ? file.path.substring(1) : file.path;
+    this.helpers = helpers.map(fnFileName);
+    this.stores = stores.map(fnFileName);
 
     vscode.window.showInformationMessage('Wise Intellisense loaded.');
   }

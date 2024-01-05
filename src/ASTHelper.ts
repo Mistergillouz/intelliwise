@@ -5,6 +5,7 @@ type AST = {
 } & object;
 
 type Node = {
+  properties: any;
   value: any;
   key: any;
   kind: string;
@@ -31,6 +32,53 @@ export default class ASTHelper {
   constructor(source: string) {
     this.ast = acornLoose.parse(source, { ecmaVersion: 2020 });
     this.flattenModel();
+  }
+
+  findPropertyIndex (propertyPath: string[]): number {
+    const index = propertyPath.reduce((acc, propertyName) => {
+      if (acc > -1) {
+        const foundIndex = this.nodes.slice(acc).findIndex((node) => node.type === 'Identifier' && node.name === propertyName);
+        acc = foundIndex > -1 ? acc + foundIndex : -1;
+      }
+      return acc;
+    }, 0);
+
+    return index;
+  }
+
+  getStoreProperties (): FunctionDescriptor[] {
+    const searchPath = ['metadata', 'properties', 'storeProperties', 'defaultValue'];
+    const index = this.findPropertyIndex(searchPath);
+    if (index < 0) {
+      return null;
+    }
+    const { parent } = this.nodes[index];
+    if (parent.type !== 'Property' && parent.value.type !== 'ArrayExpression') {
+      return null;
+    }
+
+    const keyElementPath = ['metadata', 'properties', 'keyElements'];
+    const hasViewContext = this.findPropertyIndex(keyElementPath) > -1;
+    const fnUpperFirst = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
+
+    const storeDescriptors: FunctionDescriptor[] = parent.value.elements
+      .filter((element: Node) => element.type === 'ObjectExpression')
+      .filter((element: Node) => Array.isArray(element.properties))
+      .map((element: Node) => {
+        const nameProperty = element.properties.find((property: Node) => property.key.type === 'Identifier' && property.key.name === 'name');
+        if (!nameProperty) {
+          return null;
+        }
+
+        return nameProperty.value.value;
+      })
+      .filter(Boolean)
+      .map((propertyName: string) => ({
+        name: `get${fnUpperFirst(propertyName)}`,
+        params: hasViewContext ? ['viewContext'] : []
+      }));
+
+    return storeDescriptors;
   }
 
   getFunctions(includeProtected: boolean = false): FunctionDescriptor[] {
@@ -167,7 +215,6 @@ export default class ASTHelper {
     callback(parentNode);
 
     const isNode = (node: Node) => node && typeof node === 'object';
-
     Object
       .keys(parentNode)
       .filter((key) => key !== 'parent')
