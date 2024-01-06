@@ -1,7 +1,7 @@
-const acornLoose = require("acorn-loose");
+const acornLoose = require('acorn-loose');
 
 type AST = {
-  body: Node[]
+  body: Node[];
 } & object;
 
 type Node = {
@@ -10,19 +10,19 @@ type Node = {
   key: any;
   kind: string;
   parent: any;
-  type: string,
-  name: string,
-  expression: any,
-  left: Node,
-  right: Node,
-  callee: Node,
-  arguments: Node[],
-  object: Node,
-  params: Node[],
-  property: Node,
-  element: Node,
-  elements: Node[],
-  nodes: Node[]
+  type: string;
+  name: string;
+  expression: any;
+  left: Node;
+  right: Node;
+  callee: Node;
+  arguments: Node[];
+  object: Node;
+  params: Node[];
+  property: Node;
+  element: Node;
+  elements: Node[];
+  nodes: Node[];
 };
 
 export default class ASTHelper {
@@ -31,7 +31,9 @@ export default class ASTHelper {
 
   constructor(source: string) {
     this.ast = acornLoose.parse(source, { ecmaVersion: 2020 });
-    this.flattenModel();
+    this.visitNodes(this.ast, (node: Node, parentNode: Node) => {
+      node.parent = parentNode;
+    });
   }
 
   findPropertyNode(propertyPath: string[]): any {
@@ -57,7 +59,9 @@ export default class ASTHelper {
       .filter((element: Node) => element.type === 'ObjectExpression')
       .filter((element: Node) => Array.isArray(element.properties))
       .map((element: Node) => {
-        const nameProperty = element.properties.find((property: Node) => property.key.type === 'Identifier' && property.key.name === 'name');
+        const nameProperty = element.properties.find(
+          (property: Node) => property.key.type === 'Identifier' && property.key.name === 'name'
+        );
         if (!nameProperty) {
           return null;
         }
@@ -70,20 +74,16 @@ export default class ASTHelper {
         return [
           {
             name: `get${name}`,
-            params: hasViewContext ? ['viewContext'] : []
+            params: hasViewContext ? ['viewContext'] : [],
           },
           {
             name: `set${name}`,
-            params: hasViewContext ? ['viewContext', propertyName] : [propertyName]
+            params: hasViewContext ? ['viewContext', propertyName] : [propertyName],
           },
           {
             name: `register${name}`,
-            params: hasViewContext ? ['viewContext', `this.handle${name}Changed`, 'this'] : [`this.handle${name}Changed`, 'this']
+            params: hasViewContext ? ['viewContext', `this.handle${name}Changed`, 'this'] : [`this.handle${name}Changed`, 'this'],
           },
-          {
-            name: `invalidate${name}`,
-            params: hasViewContext ? ['viewContext'] : []
-          }
         ];
       })
       .flat();
@@ -91,141 +91,201 @@ export default class ASTHelper {
     return storeDescriptors;
   }
 
-getFunctions(includeProtected: boolean = false): FunctionDescriptor[] {
-  const functions = this.nodes
-    .filter((node) => node.type === 'ExpressionStatement' &&
-      node.expression.type === 'AssignmentExpression' &&
-      node.expression.right.type === 'FunctionExpression')
-    .map((node) => {
-      // exclude private
-      const name = node.expression.left.property.name;
-      if (!this.isValidFunctionName(name, includeProtected)) {
-        return null;
-      }
+  getFunctions(includeProtected: boolean = false): FunctionDescriptor[] {
+    const functionNodes: Node[] = [];
 
-      const params = node.expression.right.params.map((param: Node) => {
-        return param.type === 'AssignmentPattern' ? param.left.name : param.name;
-      });
-
-      return { name, params };
-    })
-    .filter(Boolean);
-
-  const classMethods = this.nodes
-    .filter((node) => node.type === 'MethodDefinition' && node.kind === 'method')
-    .map((node) => {
-      const name = node.key.name;
-      if (!this.isValidFunctionName(name, includeProtected)) {
-        return null;
-      }
-
-      const params = node.value.params.map((param: Node) => param.name);
-      return { name, params };
-    })
-    .filter(Boolean);
-
-  return functions.concat(classMethods);
-}
-
-getDefineSection(): DefineDescriptor {
-  if (!Array.isArray(this.ast.body)) {
-    return null;
-  }
-
-  let paths = null;
-  let variables = null;
-
-  const bodyIndex = this.ast.body.findIndex((bodyNode) => {
-    const isCallee = bodyNode.type === 'ExpressionStatement' && bodyNode.expression.type === 'CallExpression' && bodyNode.expression.callee.type === 'MemberExpression';
-    if (!isCallee) {
-      return false;
-    }
-
-    const { expression } = bodyNode;
-    const { callee } = expression;
-    const functionName = callee.property?.name;
-    const memberExpression = callee.object;
-    const objectName = memberExpression.object?.name;
-    const propertyName = memberExpression.property?.name;
-    if (objectName !== 'sap' || propertyName !== 'ui' || functionName !== 'define') {
-      return false;
-    }
-
-    expression.arguments.forEach((argument: Node) => {
-      if (argument.type === 'FunctionExpression' && Array.isArray(argument.params)) {
-        variables = argument.params.map((param) => param.name);
-      }
-      if (argument.type === 'ArrayExpression') {
-        paths = argument.elements.map((element) => element.value);
+    this.visitNodes(this.ast, (node: Node) => {
+      if (
+        node.type === 'ExpressionStatement' &&
+        node.expression.type === 'AssignmentExpression' &&
+        node.expression.right.type === 'FunctionExpression'
+      ) {
+        functionNodes.push(node);
       }
     });
 
-    return true;
-  });
+    const functions = functionNodes
+      .map((node) => {
+        const name = node.expression.left.property.name;
+        if (!this.isValidFunctionName(name, includeProtected)) {
+          return null;
+        }
 
-  if (!variables && bodyIndex > -1) {
-    const node = this.ast.body[bodyIndex + 1];
-    if (node?.type === 'FunctionDeclaration') {
-      variables = node.params.map((param) => param.name);
+        const params = node.expression.right.params.map((param: Node) => {
+          return param.type === 'AssignmentPattern' ? param.left.name : param.name;
+        });
+
+        return { name, params };
+      })
+      .filter(Boolean);
+
+    // const methodNodes: Node[] = [];
+    // this.visitNodes(this.ast, (node: Node) => {
+    //   if (node.type === 'MethodDefinition' && node.kind === 'method') {
+    //     methodNodes.push(node);
+    //   }
+    // });
+
+    // const classMethods = methodNodes
+    //   .map((node) => {
+    //     const name = node.key.name;
+    //     if (!this.isValidFunctionName(name, includeProtected)) {
+    //       return null;
+    //     }
+
+    //     const params = node.value.params.map((param: Node) => param.name);
+    //     return { name, params };
+    //   })
+    //   .filter(Boolean);
+
+    return functions;
+  }
+
+  getDefineSection(): DefineDescriptor {
+    let paths = null;
+    let variables = null;
+
+    const bodyNode = this.visitNodes(this.ast, (node: Node) => {
+      if (node.type !== 'ExpressionStatement') {
+        return false;
+      }
+
+      const { expression } = node;
+      if (expression.type !== 'CallExpression') {
+        return false;
+      }
+
+      const { callee } = expression;
+      if (callee.type !== 'MemberExpression') {
+        return false;
+      }
+
+      const functionName = callee.property?.name;
+      const memberExpression = callee.object;
+      const objectName = memberExpression.object?.name;
+      const propertyName = memberExpression.property?.name;
+      if (objectName !== 'sap' || propertyName !== 'ui' || functionName !== 'define') {
+        return false;
+      }
+
+      expression.arguments.forEach((argument: Node) => {
+        if (argument.type === 'FunctionExpression' && Array.isArray(argument.params)) {
+          variables = argument.params.map((param) => param.name);
+        }
+        if (argument.type === 'ArrayExpression') {
+          paths = argument.elements.map((element) => element.value);
+        }
+      });
+
+      return true;
+    });
+
+    if (!variables) {
+      const functionNode = this.visitNodes(this.ast.body, (node: Node) => node.type === 'FunctionDeclaration');
+      if (functionNode) {
+        variables = functionNode.params.map((param: any) => param.name);
+      }
     }
 
     return {
       paths: paths || [],
-      variables: variables || []
+      variables: variables || [],
     };
   }
-}
 
-flattenModel(): void {
-  this.nodes = [];
-  this.visitNodes(this.ast, (node: Node, parentNode: Node) => {
-    node.parent = parentNode;
-    this.nodes.push(node);
-    return false;
-  });
-}
+  __getDefineSection(): DefineDescriptor {
+    if (!Array.isArray(this.ast.body)) {
+      return null;
+    }
 
-isNode (node: Node) {
-  return node && typeof node === 'object';
-}
+    let paths = null;
+    let variables = null;
 
-visitNodes(currentNode: any, callback: any, parentNode?: Node) {
-  if (!currentNode) {
-    return null;
+    const bodyIndex = this.ast.body.findIndex((bodyNode) => {
+      const isCallee =
+        bodyNode.type === 'ExpressionStatement' &&
+        bodyNode.expression.type === 'CallExpression' &&
+        bodyNode.expression.callee.type === 'MemberExpression';
+      if (!isCallee) {
+        return false;
+      }
+
+      const { expression } = bodyNode;
+      const { callee } = expression;
+      const functionName = callee.property?.name;
+      const memberExpression = callee.object;
+      const objectName = memberExpression.object?.name;
+      const propertyName = memberExpression.property?.name;
+      if (objectName !== 'sap' || propertyName !== 'ui' || functionName !== 'define') {
+        return false;
+      }
+
+      expression.arguments.forEach((argument: Node) => {
+        if (argument.type === 'FunctionExpression' && Array.isArray(argument.params)) {
+          variables = argument.params.map((param) => param.name);
+        }
+        if (argument.type === 'ArrayExpression') {
+          paths = argument.elements.map((element) => element.value);
+        }
+      });
+
+      return true;
+    });
+
+    if (!variables && bodyIndex > -1) {
+      const node = this.ast.body[bodyIndex + 1];
+      if (node?.type === 'FunctionDeclaration') {
+        variables = node.params.map((param) => param.name);
+      }
+
+      return {
+        paths: paths || [],
+        variables: variables || [],
+      };
+    }
   }
-  if (callback(currentNode, parentNode)) {
-    return currentNode;
+
+  isNode(node: Node) {
+    return node && typeof node === 'object';
   }
 
-  let found: Node = null;
-  const nodeKeys = Object.keys(currentNode).filter((key) => key !== 'parent');
-  for (const key of nodeKeys) {
-    const child = currentNode[key];
-    if (Array.isArray(child)) {
-      for (const childNode of child) {
-        found = this.visitNodes(childNode, callback, currentNode);
+  visitNodes(currentNode: any, callback: any, parentNode?: Node) {
+    if (!currentNode) {
+      return null;
+    }
+    if (callback(currentNode, parentNode)) {
+      return currentNode;
+    }
+
+    let found: Node = null;
+    const nodeKeys = Object.keys(currentNode).filter((key) => key !== 'parent');
+    for (const key of nodeKeys) {
+      const child = currentNode[key];
+      if (Array.isArray(child)) {
+        for (const childNode of child) {
+          found = this.visitNodes(childNode, callback, currentNode);
+          if (found) {
+            return found;
+          }
+        }
+      } else if (this.isNode(child)) {
+        found = this.visitNodes(child, callback, currentNode);
         if (found) {
           return found;
         }
       }
-    } else if (this.isNode(child)) {
-      found = this.visitNodes(child, callback, currentNode);
-      if (found) {
-        return found;
-      }
     }
-  }
 
-  return found;
-}
+    return found;
+  }
 
   static ignoredFunctionNames = ['init', 'exit', 'destroy', 'onInit', 'onExit'];
 
-isValidFunctionName(name: string, includeProtected: boolean) {
-  if (!includeProtected && name.startsWith('_')) {
-    return false;
-  }
+  isValidFunctionName(name: string, includeProtected: boolean) {
+    if (!includeProtected && name.startsWith('_')) {
+      return false;
+    }
 
-  return !ASTHelper.ignoredFunctionNames.includes(name);
-}
+    return !ASTHelper.ignoredFunctionNames.includes(name);
+  }
 }

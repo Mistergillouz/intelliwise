@@ -1,9 +1,9 @@
 type FunctionDescriptor = {
-  name: string,
-  params: string[]
+  name: string;
+  params: string[];
 };
 
 type DefineDescriptor = {
-  paths: string[],
-  variables: string[]
+  paths: string[];
+  variables: string[];
 };

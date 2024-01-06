@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { TextDocument, Position } from "vscode";
-import ASTHelper from "./ASTHelper";
+import { TextDocument, Position } from 'vscode';
+import ASTHelper from './ASTHelper';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -12,30 +12,26 @@ type WordType = {
 const WordTypes: { [key: string]: WordType } = {
   STORE: {
     id: 'store',
-    match: 'Store'
+    match: 'Store',
   },
   HELPER: {
     id: 'helper',
-    match: 'Helper'
-  }
+    match: 'Helper',
+  },
 };
-
 
 type WordInfo = {
   word: string;
   wordType: WordType;
 };
 
-
 class WiseHelper {
-
   helpers: string[];
   stores: string[];
 
   constructor() {
     this.fetchFiles();
   }
-
 
   getCompletionItems(document: TextDocument, position: Position): vscode.CompletionItem[] {
     let items = undefined;
@@ -123,20 +119,10 @@ class WiseHelper {
     'sap/bi/webi/jsapi/flux': './wise-jsapi-flux/src/sap/bi/webi/jsapi/flux',
     'sap/bi/webi/caf': './wise-container/src',
     'sap/bi/webi': './wise-wing/src',
-    'sap/bi/wrc': './wise-wrc/src'
+    'sap/bi/wrc': './wise-wrc/src',
   };
 
-  static USE_DEBUG_ENV = false;
-
   getImportSourceFunctions(sourcePath: string): vscode.CompletionItem[] {
-    //TODO: remap to wise environment folder structure
-
-    if (WiseHelper.USE_DEBUG_ENV) {
-      const index = sourcePath.lastIndexOf('/');
-      const filePath = path.join(vscode.workspace.rootPath, 'wise', `${sourcePath.substring(index)}.js`);
-      return this.getExternalSourceFunctions(filePath);
-    }
-
     const sourceParts = sourcePath.split('/');
     const fileName = `${sourceParts.pop()}.js`;
 
@@ -170,37 +156,32 @@ class WiseHelper {
 
   buildCompletionItems(inputFunctions: FunctionDescriptor[]) {
     const functions = inputFunctions.sort((s0, s1) => s0.name.localeCompare(s1.name));
-    return functions
-      .map((funct) => {
-        const item = new vscode.CompletionItem(`★ ${funct.name}`, vscode.CompletionItemKind.Snippet);
-        item.detail = '(Wise) Prototype';
+    return functions.map((funct) => {
+      const item = new vscode.CompletionItem(`★ ${funct.name}`, vscode.CompletionItemKind.Snippet);
+      item.detail = '(Wise) Prototype';
 
-        let paramString = '';
-        if (funct.params.length > 0) {
-          paramString = `_${funct.params.join('_, _')}_`;
-        }
+      let paramString = '';
+      if (funct.params.length > 0) {
+        paramString = `_${funct.params.join('_, _')}_`;
+      }
 
-        const markup = new vscode.MarkdownString(`**${funct.name}** (${paramString})`);
-        item.documentation = markup;
+      const markup = new vscode.MarkdownString(`**${funct.name}** (${paramString})`);
+      item.documentation = markup;
 
-        const snippetString = this.getSnippetString(funct.name, funct.params);
-        item.insertText = new vscode.SnippetString(snippetString);
+      const snippetString = this.getSnippetString(funct.name, funct.params);
+      item.insertText = new vscode.SnippetString(snippetString);
 
-        return item;
-      });
+      return item;
+    });
   }
 
-
   getSnippetString(functionName: string, params: string[]) {
-    const parameters = params
-      .map((parameterName, index: number) => `\${${index + 1}:${parameterName}}`)
-      .join(', ');
+    const parameters = params.map((parameterName, index: number) => `\${${index + 1}:${parameterName}}`).join(', ');
 
     return `${functionName}(${parameters})`;
   }
 
-
-  getWordTypeRegex (wordType: WordType) {
+  getWordTypeRegex(wordType: WordType) {
     const regex = new RegExp(`(?:get)?(?<found>[A-Z]\\w+)${wordType.match}\\b`);
     return regex;
   }
@@ -260,7 +241,7 @@ class WiseHelper {
 
     return {
       word: previousWord,
-      wordType: this.getWordType(previousWord)
+      wordType: this.getWordType(previousWord),
     };
   }
 
@@ -268,7 +249,7 @@ class WiseHelper {
     const helpers = await vscode.workspace.findFiles('**/*/*[hH]elper.js', '**/node_modules/**', 1000);
     const stores = await vscode.workspace.findFiles('**/*/*[sS]tore.js', '**/node_modules/**', 1000);
 
-    const fnFileName = (file: vscode.Uri) => file.path.startsWith('/') ? file.path.substring(1) : file.path;
+    const fnFileName = (file: vscode.Uri) => (file.path.startsWith('/') ? file.path.substring(1) : file.path);
     this.helpers = helpers.map(fnFileName);
     this.stores = stores.map(fnFileName);
 
